@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { Button, StatusBar, StyleSheet, Text, View } from 'react-native'
 
 enum PomodoroAction {
@@ -7,34 +7,73 @@ enum PomodoroAction {
     REST
 }
 
+const TIME_WORK = 21 * 60
+const TIME_REST = 6 * 60
+
 const App = () => {
     const [elapsedTime, setElapsedTime] = useState(0)
     const [count, setCount] = useState(0)
     const [action, setAction] = useState(PomodoroAction.NONE)
     const [running, setRunning] = useState(false)
+    const [intervalId, setIntervalId] = useState(-1)
 
     const toggleRunning = () => {
-        if (!running) {
-            countTime()
-        }
-
         setRunning(!running)
         if (action === PomodoroAction.NONE) {
             setAction(PomodoroAction.WORK)
         }
     }
 
-    const countTime = () => { 
-        setTimeout(() => {
-            if (running) {
-                setElapsedTime(elapsedTime + 1)
-            }
+    const startTimer = useCallback(() => {
+        const id = setInterval(() => {
+            setElapsedTime(currentValue => currentValue + 1)
         }, 1000)
-    }
 
+        setIntervalId(id)
+    }, [])
+
+    const stopTimer = useCallback(() => {
+        clearInterval(intervalId)
+    }, [intervalId])
+
+    useEffect(() => {
+        if (running) {
+            startTimer()
+        } else {
+            stopTimer()
+        }
+    }, [running])
+
+    const restartTimer = useCallback((newAction: PomodoroAction) => { 
+        setAction(newAction)
+        setElapsedTime(0)
+    }, [])
+
+    const updateAction = useCallback((currentTime: number) => {
+        if (action === PomodoroAction.WORK &&
+            currentTime === TIME_WORK) {
+
+            restartTimer(PomodoroAction.REST)
+            setCount(currentCount => currentCount + 1)
+        } else if (action === PomodoroAction.REST &&
+            currentTime === TIME_REST) {
+            restartTimer(PomodoroAction.WORK)
+        }
+    }, [action])
+
+    useEffect(() => { 
+        updateAction(elapsedTime)
+    }, [elapsedTime])
+
+    const getTimeFormatted = useCallback(() => {
+        const minutes = Math.floor(elapsedTime / 60).toString()
+        const seconds = (elapsedTime % 60).toString()
+
+        return `${minutes.padStart(2, '0')}:${seconds.padStart(2, '0')}`        
+    }, [elapsedTime])
 
     return (
-        <View style={appStyles.content}>
+        <View style={appStyles.content}>           
             <StatusBar backgroundColor="#b61827" barStyle={'light-content'} />
 
             <Text style={appStyles.title}>Pomodoro Timer</Text>
@@ -47,12 +86,12 @@ const App = () => {
                     : null
             }
 
-            <Text style={appStyles.timer}>99:99</Text>
+            <Text style={appStyles.timer}>{getTimeFormatted()}</Text>
 
             <Button title={running ? 'Parar' : 'Iniciar'}
                 onPress={toggleRunning} />
 
-            <Text style={appStyles.message}>Você completou 99 pomodoro(s).</Text>
+            <Text style={appStyles.message}>Você completou {count} pomodoro(s).</Text>
         </View>
     )
 }
